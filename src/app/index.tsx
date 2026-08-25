@@ -1,12 +1,22 @@
+import { Button } from '@/components/button/button';
 import { Input } from '@/components/input/input';
 import colors from "@/constants/colors";
 import { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function Login() {
 
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
+
+  function handleLogin() {
+    if (!email.trim() || !senha.trim()) {
+      Alert.alert('Erro', 'Preencha email e senha para continuar.')
+      return
+    }
+
+    console.log(email, senha)
+  }
 
   return (
     <ScrollView style={styles.scrollview}>
@@ -40,8 +50,10 @@ export default function Login() {
             label="Senha"
             placeholder="Digite sua senha aqui..."
             value={senha}
-            onChangeText={setEmail}
+            onChangeText={setSenha}
           />
+
+          <Button label="Entrar" onPress={handleLogin} />
 
         </View>
 
