@@ -20,7 +20,7 @@ export function Input({ label, placeholder, value, onChangeText, ...rest }: Inpu
             </Text>
             <TextInput
                 placeholder={placeholder}
-                placeholderTextColor={colors.zinc}
+                placeholderTextColor={colors.slate}
                 style={styles.input}
                 value={value}
                 onChangeText={onChangeText}
@@ -34,18 +34,18 @@ export function Input({ label, placeholder, value, onChangeText, ...rest }: Inpu
 
 const styles = StyleSheet.create({
     label: {
-        color: colors.white,
-        marginBottom: 10,
-        fontSize: 18
+        color: colors.gray,
+        marginBottom: 8,
+        fontSize: 16,
+        fontWeight: '500'
     },
     input: {
-        borderWidth: 1,
-        borderColor: colors.gray,
-        borderRadius: 8,
+        borderRadius: 12,
         marginBottom: 16,
-        paddingHorizontal: 8,
-        paddingTop: 14,
-        paddingBottom: 14,
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        fontSize: 16,
+        color: colors.inputText,
         backgroundColor: colors.white
     }
 });

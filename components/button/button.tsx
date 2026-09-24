@@ -32,17 +32,17 @@ const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: colors.green,
-        borderRadius: 8,
-        paddingVertical: 14,
+        backgroundColor: colors.brandGreen,
+        borderRadius: 12,
+        paddingVertical: 13,
         paddingHorizontal: 16
     },
     pressed: {
         opacity: 0.7
     },
     label: {
-        color: colors.zinc,
-        fontSize: 18,
+        color: colors.brandDark,
+        fontSize: 17,
         fontWeight: 'bold'
     },
 });
