@@ -1,11 +1,14 @@
 import { BottomNav } from '@/components/bottom-nav/bottom-nav';
 import { Header } from '@/components/header/header';
+import { MapaFazenda } from '@/components/mapa/mapa';
 import colors from "@/constants/colors";
 import { useApp } from '@/src/context/AppContext';
+import { Coordenada } from '@/src/types';
 import { formatarKg } from '@/src/utils/formatar';
+import { buscarEndereco } from '@/src/utils/mapa';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { Redirect } from 'expo-router';
-import { useState } from 'react';
+import { Redirect, router } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -14,6 +17,17 @@ const DECIMAL = /^\d+([.,]\d+)?$/
 const INTEIRO = /^\d+$/
 
 type SubAba = 'produto' | 'categoria'
+
+// RN-32
+type BuscaEndereco = 'ociosa' | 'buscando' | 'encontrado' | 'nao-encontrado'
+const ESPERA_BUSCA = 1000
+
+function dicaDoMapa(busca: BuscaEndereco, temPonto: boolean) {
+  if (busca === 'buscando') return 'Buscando endereço no mapa...'
+  if (busca === 'nao-encontrado') return 'Endereço não encontrado. Toque no mapa para marcar manualmente.'
+  if (temPonto) return 'Ponto marcado. Toque em outro lugar ou arraste o marcador para ajustar.'
+  return 'Digite a localização acima ou toque no mapa para marcar a fazenda.'
+}
 
 const subAbas: { aba: SubAba; label: string; icone: string }[] = [
   { aba: 'produto', label: 'Produto', icone: 'plus-circle' },
@@ -40,11 +54,41 @@ export default function Adicionar() {
   const [categoriaId, setCategoriaId] = useState<string | null>(null)
   const [valor, setValor] = useState('')
   const [fazenda, setFazenda] = useState('')
+  const [coordenada, setCoordenada] = useState<Coordenada | null>(null)
   const [quantidade, setQuantidade] = useState('')
   const [selectAberto, setSelectAberto] = useState(false)
 
+  // RN-32: situação da busca automática do endereço
+  const [buscaEndereco, setBuscaEndereco] = useState<BuscaEndereco>('ociosa')
+
   // Formulário de categoria
   const [categoriaNome, setCategoriaNome] = useState('')
+
+  // RN-32: 1s depois de parar de digitar, busca o endereço e marca no mapa
+  useEffect(() => {
+    const texto = fazenda.trim()
+    if (texto.length < 3) {
+      setBuscaEndereco('ociosa')
+      return
+    }
+
+    const controle = new AbortController()
+    const timer = setTimeout(async () => {
+      setBuscaEndereco('buscando')
+      try {
+        const encontrado = await buscarEndereco(texto, controle.signal)
+        if (encontrado) setCoordenada(encontrado)
+        setBuscaEndereco(encontrado ? 'encontrado' : 'nao-encontrado')
+      } catch {
+        if (!controle.signal.aborted) setBuscaEndereco('nao-encontrado')
+      }
+    }, ESPERA_BUSCA)
+
+    return () => {
+      clearTimeout(timer)
+      controle.abort()
+    }
+  }, [fazenda])
 
   if (!usuario) return <Redirect href="/" />
 
@@ -77,6 +121,11 @@ export default function Adicionar() {
       mostrarToast('Informe a localização da fazenda!', 'erro')
       return
     }
+    // RN-31
+    if (!coordenada) {
+      mostrarToast('Marque a localização da fazenda no mapa!', 'erro')
+      return
+    }
     if (!INTEIRO.test(quantidade.trim())) {
       mostrarToast('Informe uma quantidade inteira igual ou maior que 0!', 'erro')
       return
@@ -87,6 +136,7 @@ export default function Adicionar() {
       categoriaId: categoriaSelecionada.id,
       valorKg,
       fazenda: fazenda.trim(),
+      coordenada,
       quantidadeKg: Number(quantidade.trim()),
     })
 
@@ -94,6 +144,7 @@ export default function Adicionar() {
     setCategoriaId(null)
     setValor('')
     setFazenda('')
+    setCoordenada(null)
     setQuantidade('')
   }
 
@@ -190,6 +241,15 @@ export default function Adicionar() {
                 />
               </View>
 
+              {/* RN-31: ponto da fazenda marcado no mapa */}
+              <View style={styles.campo}>
+                <Text style={styles.label}>Marque a Fazenda no Mapa</Text>
+                <MapaFazenda coordenada={coordenada} onSelecionar={setCoordenada} altura={220} />
+                <Text style={[styles.dicaMapa, buscaEndereco === 'nao-encontrado' && styles.dicaMapaAviso]}>
+                  {dicaDoMapa(buscaEndereco, !!coordenada)}
+                </Text>
+              </View>
+
               <View style={styles.campo}>
                 <Text style={styles.label}>Quantidade Inicial (Kg)</Text>
                 <TextInput
@@ -207,15 +267,15 @@ export default function Adicionar() {
               </Pressable>
             </View>
 
-            <CategoriasCadastradas nomes={categorias.map((categoria) => categoria.nome)} />
+            {/* RN-30: toque no produto abre a tela de detalhes */}
+            <ItensCadastrados
+              titulo="PRODUTOS CADASTRADOS"
+              itens={produtos}
+              onPressItem={(id) => router.push({ pathname: '/produto/[id]', params: { id } })}
+            />
 
             <View style={styles.card}>
-              <View style={styles.secaoHeader}>
-                <Text style={styles.secaoTitulo}>EXCLUIR PRODUTOS</Text>
-                <View style={styles.contador}>
-                  <Text style={styles.contadorTexto}>{produtos.length}</Text>
-                </View>
-              </View>
+              <Text style={styles.secaoTitulo}>EXCLUIR PRODUTOS</Text>
 
               <ScrollView style={styles.listaRolavel} nestedScrollEnabled>
                 <View style={styles.lista}>
@@ -295,15 +355,10 @@ export default function Adicionar() {
               </Pressable>
             </View>
 
-            <CategoriasCadastradas nomes={categorias.map((categoria) => categoria.nome)} />
+            <ItensCadastrados titulo="CATEGORIAS CADASTRADAS" itens={categorias} />
 
             <View style={styles.card}>
-              <View style={styles.secaoHeader}>
-                <Text style={styles.secaoTitulo}>CATEGORIAS CADASTRADAS</Text>
-                <View style={styles.contador}>
-                  <Text style={styles.contadorTexto}>{categorias.length}</Text>
-                </View>
-              </View>
+              <Text style={styles.secaoTitulo}>EXCLUIR CATEGORIAS</Text>
 
               <ScrollView style={styles.listaRolavel} nestedScrollEnabled>
                 <View style={styles.lista}>
@@ -335,16 +390,33 @@ export default function Adicionar() {
   );
 }
 
-function CategoriasCadastradas({ nomes }: { nomes: string[] }) {
+interface ItensCadastradosProps {
+  titulo: string
+  itens: { id: string, nome: string }[]
+  onPressItem?: (id: string) => void
+}
+
+function ItensCadastrados({ titulo, itens, onPressItem }: ItensCadastradosProps) {
   return (
     <View style={styles.card}>
-      <Text style={styles.secaoTitulo}>CATEGORIAS CADASTRADAS</Text>
+      <View style={styles.secaoHeader}>
+        <Text style={styles.secaoTitulo}>{titulo}</Text>
+        <View style={styles.contador}>
+          <Text style={styles.contadorTexto}>{itens.length}</Text>
+        </View>
+      </View>
       <View style={styles.tags}>
-        {nomes.map((nome) => (
-          <View key={nome} style={styles.tag}>
+        {itens.map((item) => (
+          <Pressable
+            key={item.id}
+            style={styles.tag}
+            disabled={!onPressItem}
+            onPress={() => onPressItem?.(item.id)}
+          >
             <FontAwesome5 name="tag" size={11} color={colors.brandGreen} />
-            <Text style={styles.tagTexto}>{nome}</Text>
-          </View>
+            <Text style={styles.tagTexto}>{item.nome}</Text>
+            {onPressItem && <FontAwesome5 name="chevron-right" size={10} color={colors.slate} />}
+          </Pressable>
         ))}
       </View>
     </View>
@@ -428,6 +500,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: colors.gray,
+  },
+  dicaMapa: {
+    fontSize: 13,
+    color: colors.slate,
+  },
+  dicaMapaAviso: {
+    color: colors.yellow,
   },
   input: {
     paddingHorizontal: 18,

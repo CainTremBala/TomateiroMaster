@@ -1,7 +1,8 @@
 import { categoriasIniciais, produtosIniciais, usuariosIniciais } from '@/src/data/dados-iniciais';
 import { Categoria, Produto, TipoToast, Toast, Usuario, UsuarioCadastrado } from '@/src/types';
+import { confirmarBiometria, lerEmailBiometria, salvarEmailBiometria } from '@/src/utils/biometria';
 import { EMAIL_VALIDO } from '@/src/utils/validacao';
-import { createContext, ReactNode, useContext, useRef, useState } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 
 const DURACAO_TOAST = 3000 // RN-26
 const PASSO_ESTOQUE = 10 // RN-07
@@ -26,6 +27,13 @@ interface AppContextData {
   excluirProduto: (produtoId: string) => void
   excluirCategoria: (categoriaId: string) => void
   alterarSenha: (senhaAtual: string, novaSenha: string, confirmacao: string) => boolean
+  alterarFoto: (uri: string | null) => void
+
+  // RN-33: e-mail da conta com biometria ativada neste celular (null = nenhuma)
+  emailBiometria: string | null
+  ativarBiometria: () => Promise<void>
+  desativarBiometria: () => Promise<void>
+  entrarComBiometria: () => Promise<boolean>
 }
 
 const AppContext = createContext<AppContextData | null>(null)
@@ -55,6 +63,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const timerToast = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // RN-33: carrega do armazenamento seguro a conta com biometria ativada
+  const [emailBiometria, setEmailBiometria] = useState<string | null>(null)
+  useEffect(() => {
+    lerEmailBiometria().then(setEmailBiometria).catch(() => setEmailBiometria(null))
+  }, [])
+
   // RN-25 / RN-26: um novo toast substitui o anterior e reinicia o tempo
   function mostrarToast(mensagem: string, tipo: TipoToast = 'sucesso') {
     if (timerToast.current) clearTimeout(timerToast.current)
@@ -72,10 +86,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false
     }
 
-    // RN-02 / RN-03: nome, e-mail e permissão vêm do cadastro
+    entrarComo(cadastrado)
+    return true
+  }
+
+  // RN-02 / RN-03: nome, e-mail e permissão vêm do cadastro
+  function entrarComo(cadastrado: UsuarioCadastrado) {
     const { senha: _senha, ...dados } = cadastrado
     setUsuario(dados)
     mostrarToast(`Bem-vindo, ${dados.nome}!`)
+  }
+
+  // RN-33: ativar exige confirmar a biometria; só uma conta por celular
+  async function ativarBiometria() {
+    if (!usuario) return
+    const resultado = await confirmarBiometria('Confirme para ativar a entrada por biometria')
+    if (resultado === 'cancelado') return
+    if (resultado === 'falhou') {
+      mostrarToast('Biometria não reconhecida!', 'erro')
+      return
+    }
+
+    await salvarEmailBiometria(usuario.email)
+    setEmailBiometria(usuario.email)
+    mostrarToast('Entrada por biometria ativada!')
+  }
+
+  async function desativarBiometria() {
+    await salvarEmailBiometria(null)
+    setEmailBiometria(null)
+    mostrarToast('Entrada por biometria desativada!')
+  }
+
+  async function entrarComBiometria() {
+    if (!emailBiometria) return false
+
+    const resultado = await confirmarBiometria('Entrar no Tomateiro Master')
+    if (resultado === 'cancelado') return false
+    if (resultado === 'falhou') {
+      mostrarToast('Biometria não reconhecida!', 'erro')
+      return false
+    }
+
+    // Contas criadas no app somem ao reiniciar (RN-28): a biometria salva perde a conta
+    const cadastrado = usuarios.find((item) => item.email.toLowerCase() === emailBiometria.toLowerCase())
+    if (!cadastrado) {
+      await salvarEmailBiometria(null)
+      setEmailBiometria(null)
+      mostrarToast('Conta da biometria não encontrada. Entre com e-mail e senha!', 'erro')
+      return false
+    }
+
+    entrarComo(cadastrado)
     return true
   }
 
@@ -219,6 +281,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return true
   }
 
+  // RN-29: foto fica no cadastro (em memória) e volta no próximo login; null remove
+  function alterarFoto(uri: string | null) {
+    if (!usuario) return
+
+    const foto = uri ?? undefined
+    setUsuario({ ...usuario, foto })
+    setUsuarios((atuais) =>
+      atuais.map((item) => (item.id === usuario.id ? { ...item, foto } : item))
+    )
+    mostrarToast(uri ? 'Foto de perfil atualizada!' : 'Foto de perfil removida!')
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -238,6 +312,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         excluirProduto,
         excluirCategoria,
         alterarSenha,
+        alterarFoto,
+        emailBiometria,
+        ativarBiometria,
+        desativarBiometria,
+        entrarComBiometria,
       }}
     >
       {children}

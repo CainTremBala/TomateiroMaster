@@ -26,6 +26,7 @@ export const produtosIniciais: Produto[] = [
     categoriaId: 'CAT-001',
     valorKg: 7.8,
     fazenda: 'Fazenda Sol Nascente - Gleba A',
+    coordenada: { latitude: -22.7253, longitude: -47.6492 },
     quantidadeKg: 90,
   },
   {
@@ -34,6 +35,7 @@ export const produtosIniciais: Produto[] = [
     categoriaId: 'CAT-002',
     valorKg: 5.2,
     fazenda: 'Fazenda Vale Verde - Setor 2',
+    coordenada: { latitude: -22.0087, longitude: -47.8909 },
     quantidadeKg: 1200,
   },
   {
@@ -42,6 +44,7 @@ export const produtosIniciais: Produto[] = [
     categoriaId: 'CAT-004',
     valorKg: 14.5,
     fazenda: 'Sítio Tomatinho Feliz - Estufa 1',
+    coordenada: { latitude: -22.9056, longitude: -47.0608 },
     quantidadeKg: 85,
   },
   {
@@ -50,6 +53,7 @@ export const produtosIniciais: Produto[] = [
     categoriaId: 'CAT-003',
     valorKg: 9.9,
     fazenda: 'Fazenda Raiz Orgânica - Canteiro 4',
+    coordenada: { latitude: -23.1896, longitude: -46.8845 },
     quantidadeKg: 230,
   },
 ]

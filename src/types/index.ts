@@ -1,3 +1,9 @@
+// RN-31: ponto da fazenda marcado no mapa
+export interface Coordenada {
+  latitude: number
+  longitude: number
+}
+
 // RN-05
 export interface Produto {
   id: string // TOM-NNN, auto-increment
@@ -5,6 +11,7 @@ export interface Produto {
   categoriaId: string
   valorKg: number
   fazenda: string
+  coordenada: Coordenada // RN-31
   quantidadeKg: number
 }
 
@@ -20,6 +27,7 @@ export interface Usuario {
   nome: string
   email: string
   permissao: string
+  foto?: string // RN-29: URI da foto de perfil (sem foto = inicial do nome)
 }
 
 // RN-01: usuário cadastrado, com a senha usada no login

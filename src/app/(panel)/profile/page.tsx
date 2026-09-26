@@ -2,15 +2,37 @@ import { BottomNav } from '@/components/bottom-nav/bottom-nav';
 import { Header } from '@/components/header/header';
 import colors from "@/constants/colors";
 import { useApp } from '@/src/context/AppContext';
+import { useBiometriaDisponivel } from '@/src/utils/biometria';
 import { FontAwesome5 } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Redirect, router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Animated, Image, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+// RN-29: recorte quadrado para caber no avatar redondo
+const OPCOES_FOTO: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ['images'],
+  allowsEditing: true,
+  aspect: [1, 1],
+  quality: 0.7,
+}
 
 export default function Perfil() {
 
-  const { usuario, alterarSenha, logout } = useApp()
+  const {
+    usuario,
+    alterarSenha,
+    alterarFoto,
+    logout,
+    mostrarToast,
+    emailBiometria,
+    ativarBiometria,
+    desativarBiometria,
+  } = useApp()
+  const biometriaDisponivel = useBiometriaDisponivel()
+
+  const [menuFotoAberto, setMenuFotoAberto] = useState(false)
 
   // RN-21: fechado por padrão
   const [senhaAberta, setSenhaAberta] = useState(false)
@@ -22,6 +44,8 @@ export default function Perfil() {
   const [confirmacao, setConfirmacao] = useState('')
 
   if (!usuario) return <Redirect href="/" />
+
+  const biometriaAtiva = emailBiometria?.toLowerCase() === usuario.email.toLowerCase()
 
   // RN-21: expansão suave e seta girando 180°
   function alternarAccordion(abrir: boolean) {
@@ -41,6 +65,35 @@ export default function Perfil() {
     setNovaSenha('')
     setConfirmacao('')
     alternarAccordion(false)
+  }
+
+  // RN-29: escolher da galeria ou tirar foto com a câmera
+  async function escolherFoto(origem: 'galeria' | 'camera') {
+    setMenuFotoAberto(false)
+
+    const permissao = origem === 'galeria'
+      ? await ImagePicker.requestMediaLibraryPermissionsAsync()
+      : await ImagePicker.requestCameraPermissionsAsync()
+
+    if (!permissao.granted) {
+      mostrarToast(
+        origem === 'galeria' ? 'Permissão de acesso às fotos negada!' : 'Permissão de acesso à câmera negada!',
+        'erro'
+      )
+      return
+    }
+
+    const resultado = origem === 'galeria'
+      ? await ImagePicker.launchImageLibraryAsync(OPCOES_FOTO)
+      : await ImagePicker.launchCameraAsync(OPCOES_FOTO)
+
+    if (resultado.canceled) return
+    alterarFoto(resultado.assets[0].uri)
+  }
+
+  function removerFoto() {
+    setMenuFotoAberto(false)
+    alterarFoto(null)
   }
 
   // RN-04
@@ -65,10 +118,15 @@ export default function Perfil() {
 
         {/* Dados do usuário (RN-20) */}
         <View style={[styles.card, styles.perfil]}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarTexto}>{usuario.nome.charAt(0)}</Text>
-            <View style={styles.online} />
-          </View>
+          {/* RN-29: toque no avatar abre as opções de foto */}
+          <Pressable style={styles.avatar} onPress={() => setMenuFotoAberto(true)}>
+            {usuario.foto
+              ? <Image source={{ uri: usuario.foto }} style={styles.avatarFoto} />
+              : <Text style={styles.avatarTexto}>{usuario.nome.charAt(0)}</Text>}
+            <View style={styles.botaoCamera}>
+              <FontAwesome5 name="camera" size={14} color={colors.brandDark} />
+            </View>
+          </Pressable>
 
           <Text style={styles.nome}>{usuario.nome}</Text>
           <Text style={styles.email}>{usuario.email}</Text>
@@ -145,6 +203,32 @@ export default function Perfil() {
           </Animated.View>
         </View>
 
+        {/* Entrada por biometria (RN-33) */}
+        <View style={[styles.card, styles.biometria]}>
+          <View style={styles.biometriaInfo}>
+            <View style={styles.accordionTituloArea}>
+              <FontAwesome5 name="fingerprint" size={18} color={colors.brandGreen} />
+              <Text style={styles.accordionTitulo}>ENTRAR COM BIOMETRIA</Text>
+            </View>
+            <Text style={styles.biometriaDica}>
+              {!biometriaDisponivel
+                ? 'Este aparelho não tem digital ou Face ID configurado.'
+                : biometriaAtiva
+                  ? 'Ativada: você pode entrar com digital/Face ID na tela de login.'
+                  : emailBiometria
+                    ? `Ativar substitui a conta ${emailBiometria} neste celular.`
+                    : 'Entre com digital/Face ID sem digitar a senha.'}
+            </Text>
+          </View>
+          <Switch
+            value={biometriaAtiva}
+            disabled={!biometriaDisponivel}
+            onValueChange={(ativar) => (ativar ? ativarBiometria() : desativarBiometria())}
+            trackColor={{ false: colors.border, true: colors.brandGreen }}
+            thumbColor={colors.white}
+          />
+        </View>
+
         {/* Logout (RN-04) */}
         <Pressable style={styles.botaoSair} onPress={sair}>
           <FontAwesome5 name="sign-out-alt" size={16} color={colors.brandRed} />
@@ -152,6 +236,38 @@ export default function Perfil() {
         </Pressable>
 
       </ScrollView>
+
+      {/* Opções da foto de perfil (RN-29) */}
+      <Modal
+        visible={menuFotoAberto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuFotoAberto(false)}
+      >
+        <Pressable style={styles.modalFundo} onPress={() => setMenuFotoAberto(false)}>
+          {/* Pressable vazio: toque dentro da caixa não fecha o menu */}
+          <Pressable style={styles.modalCaixa} onPress={() => {}}>
+            <Text style={styles.modalTitulo}>Foto de Perfil</Text>
+
+            <Pressable style={styles.modalOpcao} onPress={() => escolherFoto('galeria')}>
+              <FontAwesome5 name="images" size={16} color={colors.brandGreen} />
+              <Text style={styles.modalOpcaoTexto}>Escolher da galeria</Text>
+            </Pressable>
+
+            <Pressable style={styles.modalOpcao} onPress={() => escolherFoto('camera')}>
+              <FontAwesome5 name="camera" size={16} color={colors.brandGreen} />
+              <Text style={styles.modalOpcaoTexto}>Tirar foto</Text>
+            </Pressable>
+
+            {usuario.foto && (
+              <Pressable style={styles.modalOpcao} onPress={removerFoto}>
+                <FontAwesome5 name="trash-alt" size={16} color={colors.brandRed} />
+                <Text style={[styles.modalOpcaoTexto, styles.modalOpcaoRemover]}>Remover foto</Text>
+              </Pressable>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <BottomNav ativa="perfil" />
 
@@ -198,14 +314,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.brandGreen,
   },
-  online: {
+  avatarFoto: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60,
+  },
+  botaoCamera: {
     position: 'absolute',
-    right: 2,
-    bottom: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.online,
+    right: -2,
+    bottom: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.brandGreen,
     borderWidth: 3,
     borderColor: colors.cardDark,
   },
@@ -304,6 +427,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.brandDark,
   },
+  biometria: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 18,
+  },
+  biometriaInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  biometriaDica: {
+    fontSize: 13,
+    color: colors.slate,
+  },
   botaoSair: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -318,6 +456,44 @@ const styles = StyleSheet.create({
   botaoSairTexto: {
     fontSize: 17,
     fontWeight: 'bold',
+    color: colors.brandRed,
+  },
+  modalFundo: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  },
+  modalCaixa: {
+    padding: 20,
+    gap: 10,
+    borderRadius: 18,
+    backgroundColor: colors.cardDark,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalTitulo: {
+    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.white,
+  },
+  modalOpcao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: colors.brandDark2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalOpcaoTexto: {
+    fontSize: 15,
+    color: colors.gray,
+  },
+  modalOpcaoRemover: {
     color: colors.brandRed,
   },
 });

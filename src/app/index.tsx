@@ -2,7 +2,9 @@ import { Button } from '@/components/button/button';
 import { Input } from '@/components/input/input';
 import colors from "@/constants/colors";
 import { useApp } from '@/src/context/AppContext';
+import { useBiometriaDisponivel } from '@/src/utils/biometria';
 import { EMAIL_VALIDO } from '@/src/utils/validacao';
+import { FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -16,7 +18,8 @@ const abas: { aba: Aba; label: string }[] = [
 
 export default function Login() {
 
-  const { login, cadastrarUsuario, mostrarToast } = useApp()
+  const { login, cadastrarUsuario, mostrarToast, emailBiometria, entrarComBiometria } = useApp()
+  const biometriaDisponivel = useBiometriaDisponivel()
   const [abaAtiva, setAbaAtiva] = useState<Aba>('entrar')
 
   // Aba Entrar
@@ -55,6 +58,13 @@ export default function Login() {
     }
 
     if (login(emailDigitado, senha)) {
+      router.replace('/estoque/page')
+    }
+  }
+
+  // RN-33
+  async function handleBiometria() {
+    if (await entrarComBiometria()) {
       router.replace('/estoque/page')
     }
   }
@@ -126,6 +136,17 @@ export default function Login() {
                 />
 
                 <Button label="Entrar" onPress={handleLogin} />
+
+                {/* RN-33: só aparece com biometria no aparelho e ativada no Perfil */}
+                {biometriaDisponivel && emailBiometria && (
+                  <Pressable style={styles.botaoBiometria} onPress={handleBiometria}>
+                    <FontAwesome5 name="fingerprint" size={22} color={colors.brandGreen} />
+                    <View>
+                      <Text style={styles.botaoBiometriaTexto}>Entrar com biometria</Text>
+                      <Text style={styles.botaoBiometriaEmail}>{emailBiometria}</Text>
+                    </View>
+                  </Pressable>
+                )}
               </>
             )}
 
@@ -253,5 +274,26 @@ const styles = StyleSheet.create({
   },
   abaTextoAtivo: {
     color: colors.brandDark,
+  },
+  botaoBiometria: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    marginTop: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.brandGreen,
+    backgroundColor: colors.brandDark2,
+  },
+  botaoBiometriaTexto: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.brandGreen,
+  },
+  botaoBiometriaEmail: {
+    fontSize: 12,
+    color: colors.slate,
   },
 });

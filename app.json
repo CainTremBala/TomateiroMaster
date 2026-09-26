@@ -34,7 +34,21 @@
       "expo-font",
       "expo-splash-screen",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Tomateiro Master precisa acessar suas fotos para definir a foto de perfil.",
+          "cameraPermission": "O Tomateiro Master precisa acessar a câmera para tirar a foto de perfil."
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "O Tomateiro Master usa o Face ID para você entrar na sua conta."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

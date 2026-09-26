@@ -29,6 +29,11 @@ export default function MainLayout() {
                     />
 
                     <Stack.Screen
+                        name='(panel)/produto/[id]'
+                        options={{ headerShown: false }}
+                    />
+
+                    <Stack.Screen
                         name='(panel)/profile/page'
                         options={{ headerShown: false }}
                     />
