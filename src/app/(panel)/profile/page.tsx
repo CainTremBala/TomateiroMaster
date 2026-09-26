@@ -88,12 +88,12 @@ export default function Perfil() {
       : await ImagePicker.launchCameraAsync(OPCOES_FOTO)
 
     if (resultado.canceled) return
-    alterarFoto(resultado.assets[0].uri)
+    await alterarFoto(resultado.assets[0].uri)
   }
 
-  function removerFoto() {
+  async function removerFoto() {
     setMenuFotoAberto(false)
-    alterarFoto(null)
+    await alterarFoto(null)
   }
 
   // RN-04

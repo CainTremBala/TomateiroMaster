@@ -1,5 +1,6 @@
 import { categoriasIniciais, produtosIniciais, usuariosIniciais } from '@/src/data/dados-iniciais';
 import { Categoria, Produto, TipoToast, Toast, Usuario, UsuarioCadastrado } from '@/src/types';
+import { apagarFotoPerfil, carregarDados, guardarFotoPerfil, salvarDados } from '@/src/utils/banco';
 import { confirmarBiometria, lerEmailBiometria, salvarEmailBiometria } from '@/src/utils/biometria';
 import { EMAIL_VALIDO } from '@/src/utils/validacao';
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
@@ -27,7 +28,7 @@ interface AppContextData {
   excluirProduto: (produtoId: string) => void
   excluirCategoria: (categoriaId: string) => void
   alterarSenha: (senhaAtual: string, novaSenha: string, confirmacao: string) => boolean
-  alterarFoto: (uri: string | null) => void
+  alterarFoto: (uri: string | null) => Promise<void>
 
   // RN-33: e-mail da conta com biometria ativada neste celular (null = nenhuma)
   emailBiometria: string | null
@@ -62,6 +63,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null)
 
   const timerToast = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // RN-34: carrega o banco local ao abrir o app (1ª vez = dados iniciais)
+  const [carregado, setCarregado] = useState(false)
+  useEffect(() => {
+    carregarDados()
+      .then((dados) => {
+        if (!dados) return
+        ultimoIdProduto.current = dados.ultimosIds.produto
+        ultimoIdCategoria.current = dados.ultimosIds.categoria
+        ultimoIdUsuario.current = dados.ultimosIds.usuario
+        setUsuarios(dados.usuarios)
+        setProdutos(dados.produtos)
+        setCategorias(dados.categorias)
+
+        // Sessão continua até "Sair da Conta"
+        const logado = dados.usuarios.find((item) => item.id === dados.sessao)
+        if (logado) {
+          const { senha: _senha, ...semSenha } = logado
+          setUsuario(semSenha)
+        }
+      })
+      .catch(() => {}) // banco ilegível: segue com os dados iniciais
+      .finally(() => setCarregado(true))
+  }, [])
+
+  // RN-34: salva a cada alteração (só depois de carregar, para não sobrescrever o banco)
+  useEffect(() => {
+    if (!carregado) return
+    salvarDados({
+      usuarios,
+      produtos,
+      categorias,
+      ultimosIds: {
+        produto: ultimoIdProduto.current,
+        categoria: ultimoIdCategoria.current,
+        usuario: ultimoIdUsuario.current,
+      },
+      sessao: usuario?.id ?? null,
+    }).catch(() => {})
+  }, [carregado, usuarios, produtos, categorias, usuario?.id])
 
   // RN-33: carrega do armazenamento seguro a conta com biometria ativada
   const [emailBiometria, setEmailBiometria] = useState<string | null>(null)
@@ -128,7 +169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false
     }
 
-    // Contas criadas no app somem ao reiniciar (RN-28): a biometria salva perde a conta
+    // A conta salva pode não existir mais (ex: dados do app apagados)
     const cadastrado = usuarios.find((item) => item.email.toLowerCase() === emailBiometria.toLowerCase())
     if (!cadastrado) {
       await salvarEmailBiometria(null)
@@ -281,17 +322,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return true
   }
 
-  // RN-29: foto fica no cadastro (em memória) e volta no próximo login; null remove
-  function alterarFoto(uri: string | null) {
+  // RN-29 / RN-34: foto fica salva no cadastro (banco local); null remove
+  async function alterarFoto(uri: string | null) {
     if (!usuario) return
 
-    const foto = uri ?? undefined
+    let foto: string | undefined
+    if (uri) {
+      try {
+        foto = await guardarFotoPerfil(uri, usuario.id)
+      } catch {
+        foto = uri // falhou a cópia: usa a foto original
+      }
+    }
+    apagarFotoPerfil(usuario.foto)
+
     setUsuario({ ...usuario, foto })
     setUsuarios((atuais) =>
       atuais.map((item) => (item.id === usuario.id ? { ...item, foto } : item))
     )
     mostrarToast(uri ? 'Foto de perfil atualizada!' : 'Foto de perfil removida!')
   }
+
+  // Só mostra as telas depois de carregar o banco (evita piscar o Login com sessão salva)
+  if (!carregado) return null
 
   return (
     <AppContext.Provider

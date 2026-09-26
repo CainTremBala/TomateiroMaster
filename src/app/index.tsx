@@ -5,7 +5,7 @@ import { useApp } from '@/src/context/AppContext';
 import { useBiometriaDisponivel } from '@/src/utils/biometria';
 import { EMAIL_VALIDO } from '@/src/utils/validacao';
 import { FontAwesome5 } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -18,9 +18,12 @@ const abas: { aba: Aba; label: string }[] = [
 
 export default function Login() {
 
-  const { login, cadastrarUsuario, mostrarToast, emailBiometria, entrarComBiometria } = useApp()
+  const { usuario, login, cadastrarUsuario, mostrarToast, emailBiometria, entrarComBiometria } = useApp()
   const biometriaDisponivel = useBiometriaDisponivel()
   const [abaAtiva, setAbaAtiva] = useState<Aba>('entrar')
+
+  // RN-34: sessão salva no banco local → abre direto no Estoque
+  const [sessaoSalva] = useState(usuario !== null)
 
   // Aba Entrar
   const [email, setEmail] = useState('')
@@ -68,6 +71,8 @@ export default function Login() {
       router.replace('/estoque/page')
     }
   }
+
+  if (sessaoSalva) return <Redirect href="/estoque/page" />
 
   return (
     <KeyboardAvoidingView
