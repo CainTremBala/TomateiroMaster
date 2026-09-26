@@ -4,7 +4,7 @@ import { MapaFazenda } from '@/components/mapa/mapa';
 import colors from "@/constants/colors";
 import { useApp } from '@/src/context/AppContext';
 import { Coordenada } from '@/src/types';
-import { formatarKg } from '@/src/utils/formatar';
+import { formatarKg, mascararReais, valorDaMascara } from '@/src/utils/formatar';
 import { buscarEndereco } from '@/src/utils/mapa';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Redirect, router } from 'expo-router';
@@ -12,8 +12,7 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-// RN-05: decimal positivo (aceita 8.50 e 8,50) e inteiro >= 0
-const DECIMAL = /^\d+([.,]\d+)?$/
+// RN-05: quantidade inteira >= 0 (o valor usa a máscara de moeda)
 const INTEIRO = /^\d+$/
 
 type SubAba = 'produto' | 'categoria'
@@ -112,8 +111,8 @@ export default function Adicionar() {
       mostrarToast('Selecione uma categoria!', 'erro')
       return
     }
-    const valorKg = Number(valor.trim().replace(',', '.'))
-    if (!DECIMAL.test(valor.trim()) || valorKg <= 0) {
+    const valorKg = valorDaMascara(valor)
+    if (valorKg <= 0) {
       mostrarToast('Informe um valor unitário positivo!', 'erro')
       return
     }
@@ -221,11 +220,11 @@ export default function Adicionar() {
                   <Text style={styles.label}>Valor Unit. (R$/kg)</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="8.50"
+                    placeholder="R$ 0,00"
                     placeholderTextColor={colors.slate}
-                    keyboardType="decimal-pad"
+                    keyboardType="number-pad"
                     value={valor}
-                    onChangeText={setValor}
+                    onChangeText={(texto) => setValor(mascararReais(texto))}
                   />
                 </View>
               </View>
